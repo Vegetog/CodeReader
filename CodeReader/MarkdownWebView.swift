@@ -27,7 +27,7 @@ struct MarkdownWebView: UIViewRepresentable {
         let escaped = markdown
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "`", with: "\\`")
-            .replacingOccurrences(of: "$", with: "\\$")
+            .replacingOccurrences(of: "${", with: "\\${")
             .replacingOccurrences(of: "</script>", with: "<\\/script>")
 
         let html = """
@@ -44,6 +44,10 @@ struct MarkdownWebView: UIViewRepresentable {
 
             <!-- markdown-it 核心 -->
             <script src="https://cdn.jsdelivr.net/npm/markdown-it@13.0.1/dist/markdown-it.min.js"></script>
+            <!-- markdown-it-katex 数学公式支持 -->
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+            <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+            <script src="https://cdn.jsdelivr.net/npm/markdown-it-katex@2.0.3/dist/markdown-it-katex.min.js"></script>
 
             <style>
                 :root {
@@ -200,6 +204,10 @@ struct MarkdownWebView: UIViewRepresentable {
                             return '<pre><code class="hljs">' + md.utils.escapeHtml(str) + '</code></pre>';
                         }
                     });
+
+                    if (window.markdownitKatex) {
+                        md.use(window.markdownitKatex);
+                    }
 
                     document.getElementById('content').innerHTML = md.render(decoded);
                 })();
