@@ -37,8 +37,9 @@ struct MarkdownWebView: UIViewRepresentable {
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <meta charset="utf-8">
 
-            <!-- highlight.js 代码高亮（可选） -->
-            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+            <!-- highlight.js 代码高亮 -->
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-light.min.css" media="(prefers-color-scheme: light)">
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" media="(prefers-color-scheme: dark)">
             <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 
             <!-- markdown-it 核心 -->
@@ -46,7 +47,7 @@ struct MarkdownWebView: UIViewRepresentable {
 
             <style>
                 :root {
-                    color-scheme: light;
+                    color-scheme: light dark;
                 }
 
                 body {
@@ -55,16 +56,17 @@ struct MarkdownWebView: UIViewRepresentable {
                     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, -apple-system-body;
                     font-size: \(fontSize)px;
                     line-height: 1.6;
-                    color: #000000;
-                    background-color: #FFFFFF;
+                    color: var(--text-color);
+                    background-color: var(--background-color);
                     -webkit-text-size-adjust: 100%;
+                    transition: color 0.2s ease, background-color 0.2s ease;
                 }
 
                 h1, h2, h3, h4, h5, h6 {
                     font-weight: 600;
                     margin-top: 1.2em;
                     margin-bottom: 0.6em;
-                    color: #000000;
+                    color: var(--text-color);
                 }
 
                 h1 { font-size: \(fontSize * 1.8)px; }
@@ -74,14 +76,14 @@ struct MarkdownWebView: UIViewRepresentable {
 
                 code {
                     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-                    background-color: rgba(0, 0, 0, 0.06);
+                    background-color: var(--inline-code-bg);
                     padding: 2px 4px;
                     border-radius: 4px;
-                    color: #000000;
+                    color: var(--text-color);
                 }
 
                 pre {
-                    background-color: rgba(0, 0, 0, 0.05);
+                    background-color: var(--pre-bg);
                     padding: 12px;
                     border-radius: 8px;
                     overflow-x: auto;
@@ -93,7 +95,7 @@ struct MarkdownWebView: UIViewRepresentable {
                 }
 
                 a {
-                    color: #007AFF;
+                    color: var(--link-color);
                     text-decoration: none;
                 }
 
@@ -102,10 +104,10 @@ struct MarkdownWebView: UIViewRepresentable {
                 }
 
                 blockquote {
-                    border-left: 4px solid rgba(0, 0, 0, 0.25);
+                    border-left: 4px solid var(--quote-border);
                     padding-left: 12px;
                     margin-left: 0;
-                    color: rgba(0, 0, 0, 0.8);
+                    color: var(--quote-text);
                 }
 
                 table {
@@ -115,9 +117,9 @@ struct MarkdownWebView: UIViewRepresentable {
                 }
 
                 table th, table td {
-                    border: 1px solid rgba(0, 0, 0, 0.2);
+                    border: 1px solid var(--table-border);
                     padding: 6px 8px;
-                    color: #000000;
+                    color: var(--text-color);
                 }
 
                 img {
@@ -134,8 +136,30 @@ struct MarkdownWebView: UIViewRepresentable {
 
                 hr {
                     border: 0;
-                    border-top: 1px solid rgba(0, 0, 0, 0.2);
+                    border-top: 1px solid var(--table-border);
                     margin: 16px 0;
+                }
+
+                :root[data-theme="light"] {
+                    --text-color: #383a42;
+                    --background-color: #fafafa;
+                    --inline-code-bg: #ebebeb;
+                    --pre-bg: #f6f8fa;
+                    --link-color: #4078f2;
+                    --quote-border: rgba(0, 0, 0, 0.2);
+                    --quote-text: rgba(0, 0, 0, 0.8);
+                    --table-border: rgba(0, 0, 0, 0.2);
+                }
+
+                :root[data-theme="dark"] {
+                    --text-color: #abb2bf;
+                    --background-color: #1f2229;
+                    --inline-code-bg: #282c34;
+                    --pre-bg: #282c34;
+                    --link-color: #61afef;
+                    --quote-border: rgba(255, 255, 255, 0.25);
+                    --quote-text: rgba(255, 255, 255, 0.85);
+                    --table-border: rgba(255, 255, 255, 0.25);
                 }
             </style>
         </head>
@@ -144,6 +168,13 @@ struct MarkdownWebView: UIViewRepresentable {
 
             <script>
                 (function() {
+                    var prefersDark = window.matchMedia('(prefers-color-scheme: dark)');
+                    var setTheme = function(isDark) {
+                        document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+                    };
+                    setTheme(prefersDark.matches);
+                    prefersDark.addEventListener('change', function(event) { setTheme(event.matches); });
+
                     // Swift 注入的原始 markdown 文本（已经在 Swift 里做了转义）
                     var decoded = `\(escaped)`;
 
