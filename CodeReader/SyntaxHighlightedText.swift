@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import Combine
 
 struct SyntaxHighlightedText: View {
     let text: String
@@ -15,10 +16,10 @@ struct SyntaxHighlightedText: View {
             .font(.system(size: fontSize, design: .monospaced))
             .frame(maxWidth: .infinity, alignment: .leading)
             .onAppear(perform: refresh)
-            .onChange(of: text) { _ in refresh() }
-            .onChange(of: language) { _ in refresh() }
-            .onChange(of: colorScheme) { _ in refresh() }
-            .onChange(of: fontSize) { _ in refresh() }
+            .onChange(of: text) { _, _ in refresh() }
+            .onChange(of: language) { _, _ in refresh() }
+            .onChange(of: colorScheme) { _, _ in refresh() }
+            .onChange(of: fontSize) { _, _ in refresh() }
     }
 
     private func refresh() {
@@ -33,6 +34,7 @@ struct SyntaxHighlightedText: View {
 }
 
 private final class SyntaxHighlighter: ObservableObject {
+    let objectWillChange = ObservableObjectPublisher()
     private static let cache = NSCache<NSString, NSAttributedString>()
     private static let tokenCache = NSCache<NSString, HighlightTokenCacheValue>()
 
