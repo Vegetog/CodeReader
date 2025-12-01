@@ -103,22 +103,27 @@ struct ContentView: View {
 
         case .success(let urls):
             guard let url = urls.first else { return }
-
-            // ⬇️ 关键：申请访问安全作用域资源
-            let accessGranted = url.startAccessingSecurityScopedResource()
-            defer {
-                if accessGranted {
-                    url.stopAccessingSecurityScopedResource()
+            Task.detached(priority: .userInitiated) {
+                // ⬇️ 关键：申请访问安全作用域资源
+                let accessGranted = url.startAccessingSecurityScopedResource()
+                defer {
+                    if accessGranted {
+                        url.stopAccessingSecurityScopedResource()
+                    }
                 }
-            }
 
-            do {
-                let text = try String(contentsOf: url, encoding: .utf8)
-                let kind = detectFileKind(for: url)
-                openedFile = OpenedFile(url: url, content: text, kind: kind)
-                isEditing = false
-            } catch {
-                loadError = "无法读取文件：\(error.localizedDescription)"
+                do {
+                    let text = try String(contentsOf: url, encoding: .utf8)
+                    let kind = detectFileKind(for: url)
+                    await MainActor.run {
+                        openedFile = OpenedFile(url: url, content: text, kind: kind)
+                        isEditing = false
+                    }
+                } catch {
+                    await MainActor.run {
+                        loadError = "无法读取文件：\(error.localizedDescription)"
+                    }
+                }
             }
         }
     }
