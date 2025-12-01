@@ -97,10 +97,7 @@ struct FileViewer: View {
                         .padding(.horizontal)
                         .scrollContentBackground(.hidden)
                 case .preview:
-                    ScrollView {
-                        MarkdownPreview(text: openedFile.content)
-                            .padding()
-                    }
+                    MarkdownPreview(text: openedFile.content, fontSize: fontSize)
                 }
             }
         }

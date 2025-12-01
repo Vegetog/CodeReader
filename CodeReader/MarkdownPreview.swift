@@ -2,15 +2,10 @@ import SwiftUI
 
 struct MarkdownPreview: View {
     let text: String
+    let fontSize: CGFloat
 
     var body: some View {
-        if let attributed = try? AttributedString(markdown: text) {
-            Text(attributed)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        } else {
-            Text(text)
-                .font(.system(.body, design: .monospaced))
-                .foregroundStyle(.secondary)
-        }
+        MarkdownWebView(markdown: text, fontSize: fontSize)
+            .edgesIgnoringSafeArea(.bottom)
     }
 }
