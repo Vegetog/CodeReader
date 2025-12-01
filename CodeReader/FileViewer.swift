@@ -33,35 +33,25 @@ struct FileViewer: View {
 
     private func codeView(language: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(openedFile.url.lastPathComponent)
-                    .font(.headline)
-                Spacer()
+            fileHeader {
                 Text(language.uppercased())
                     .font(.caption)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(.thinMaterial, in: Capsule())
             }
-            .padding(.horizontal)
-            .padding(.top, 8)
 
             Divider()
 
             if isEditing {
-                TextEditor(text: $openedFile.content)
-                    .font(.system(size: fontSize, design: .monospaced))
-                    .padding(.horizontal)
-                    .scrollContentBackground(.hidden)
+                textEditorView
             } else {
-                ScrollView {
+                readOnlyScrollView {
                     SyntaxHighlightedText(
                         text: openedFile.content,
                         language: language,
                         fontSize: fontSize
                     )
-                    .padding()
-                    .textSelection(.enabled)
                 }
             }
         }
@@ -71,13 +61,7 @@ struct FileViewer: View {
 
     private var markdownView: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(openedFile.url.lastPathComponent)
-                    .font(.headline)
-                Spacer()
-            }
-            .padding(.horizontal)
-            .padding(.top, 8)
+            fileHeader()
 
             Picker("模式", selection: $markdownMode) {
                 ForEach(MarkdownMode.allCases) { mode in
@@ -92,10 +76,7 @@ struct FileViewer: View {
             Group {
                 switch markdownMode {
                 case .source:
-                    TextEditor(text: $openedFile.content)
-                        .font(.system(size: fontSize, design: .monospaced))
-                        .padding(.horizontal)
-                        .scrollContentBackground(.hidden)
+                    textEditorView
                 case .preview:
                     MarkdownPreview(text: openedFile.content, fontSize: fontSize)
                 }
@@ -107,29 +88,48 @@ struct FileViewer: View {
 
     private var plainTextView: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(openedFile.url.lastPathComponent)
-                    .font(.headline)
-                Spacer()
-            }
-            .padding(.horizontal)
-            .padding(.top, 8)
+            fileHeader()
 
             Divider()
 
             if isEditing {
-                TextEditor(text: $openedFile.content)
-                    .font(.system(size: fontSize, design: .monospaced))
-                    .padding(.horizontal)
-                    .scrollContentBackground(.hidden)
+                textEditorView
             } else {
-                ScrollView {
+                readOnlyScrollView {
                     Text(openedFile.content)
                         .font(.system(size: fontSize, design: .monospaced))
-                        .padding()
-                        .textSelection(.enabled)
                 }
             }
+        }
+    }
+
+    // MARK: - Shared Components
+
+    @ViewBuilder
+    private func fileHeader<Accessory: View>(@ViewBuilder accessory: () -> Accessory = { EmptyView() }) -> some View {
+        HStack {
+            Text(openedFile.url.lastPathComponent)
+                .font(.headline)
+            Spacer()
+            accessory()
+        }
+        .padding(.horizontal)
+        .padding(.top, 8)
+    }
+
+    private var textEditorView: some View {
+        TextEditor(text: $openedFile.content)
+            .font(.system(size: fontSize, design: .monospaced))
+            .padding(.horizontal)
+            .scrollContentBackground(.hidden)
+    }
+
+    @ViewBuilder
+    private func readOnlyScrollView<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        ScrollView {
+            content()
+                .padding()
+                .textSelection(.enabled)
         }
     }
 }
