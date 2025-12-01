@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import Combine
 
 struct SyntaxHighlightedText: View {
     let text: String
@@ -7,16 +8,111 @@ struct SyntaxHighlightedText: View {
     let fontSize: CGFloat
 
     @Environment(\.colorScheme) private var colorScheme
+    @StateObject private var highlighter = SyntaxHighlighter()
+    @State private var attributed: AttributedString = AttributedString("")
 
     var body: some View {
-        let theme = SyntaxHighlightTheme.atomOne(for: colorScheme)
-        let attributed = highlight(text: text, language: language, theme: theme)
         Text(attributed)
             .font(.system(size: fontSize, design: .monospaced))
             .frame(maxWidth: .infinity, alignment: .leading)
+            .onAppear(perform: refresh)
+            .onChange(of: text) { _, _ in refresh() }
+            .onChange(of: language) { _, _ in refresh() }
+            .onChange(of: colorScheme) { _, _ in refresh() }
+            .onChange(of: fontSize) { _, _ in refresh() }
     }
 
-    private func highlight(text: String, language: String, theme: SyntaxHighlightTheme) -> AttributedString {
+    private func refresh() {
+        let theme = SyntaxHighlightTheme.atomOne(for: colorScheme)
+        attributed = highlighter.highlight(
+            text: text,
+            language: language,
+            fontSize: fontSize,
+            theme: theme
+        )
+    }
+}
+
+private final class SyntaxHighlighter: ObservableObject {
+    let objectWillChange = ObservableObjectPublisher()
+    private static let cache = NSCache<NSString, NSAttributedString>()
+    private static let tokenCache = NSCache<NSString, HighlightTokenCacheValue>()
+
+    func highlight(text: String, language: String, fontSize: CGFloat, theme: SyntaxHighlightTheme) -> AttributedString {
+        let finalKey = cacheKey(text: text, language: language, fontSize: fontSize, themeKey: theme.cacheKey)
+        if let cached = Self.cache.object(forKey: finalKey) {
+            return AttributedString(cached)
+        }
+
+        let tokens = tokenizedMatches(text: text, language: language)
+        let highlighted = buildHighlightedString(
+            text: text,
+            tokens: tokens,
+            fontSize: fontSize,
+            theme: theme
+        )
+
+        Self.cache.setObject(highlighted, forKey: finalKey)
+        return AttributedString(highlighted)
+    }
+
+    private func tokenizedMatches(text: String, language: String) -> HighlightTokenCacheValue {
+        let tokenKey = NSString(string: "\(language)|\(text.hashValue)")
+        if let cachedTokens = Self.tokenCache.object(forKey: tokenKey) {
+            return cachedTokens
+        }
+
+        let fullRange = NSRange(location: 0, length: (text as NSString).length)
+
+        let keywordRanges: [NSRange]
+        if let regex = RegexStore.keywordRegex(for: language) {
+            keywordRanges = regex.matches(in: text, range: fullRange).map { $0.range }
+        } else {
+            keywordRanges = []
+        }
+
+        let stringRanges = RegexStore.stringRegex.matches(in: text, range: fullRange).map { $0.range }
+        let numberRanges = RegexStore.numberRegex.matches(in: text, range: fullRange).map { $0.range }
+
+        let commentRanges: [NSRange]
+        if let regex = RegexStore.commentRegex(for: language) {
+            commentRanges = regex.matches(in: text, range: fullRange).map { $0.range }
+        } else {
+            commentRanges = []
+        }
+
+        var headingRanges: [NSRange] = []
+        var boldRanges: [NSRange] = []
+        var inlineCodeRanges: [NSRange] = []
+        var linkRanges: [NSRange] = []
+        if language == "md" || language == "markdown" {
+            headingRanges = RegexStore.markdownHeadingRegex.matches(in: text, range: fullRange).map { $0.range }
+            boldRanges = RegexStore.markdownBoldRegex.matches(in: text, range: fullRange).map { $0.range }
+            inlineCodeRanges = RegexStore.markdownInlineCodeRegex.matches(in: text, range: fullRange).map { $0.range }
+            linkRanges = RegexStore.markdownLinkRegex.matches(in: text, range: fullRange).map { $0.range }
+        }
+
+        let tokens = HighlightTokenCacheValue(
+            keywordRanges: keywordRanges,
+            stringRanges: stringRanges,
+            numberRanges: numberRanges,
+            commentRanges: commentRanges,
+            headingRanges: headingRanges,
+            boldRanges: boldRanges,
+            inlineCodeRanges: inlineCodeRanges,
+            linkRanges: linkRanges
+        )
+
+        Self.tokenCache.setObject(tokens, forKey: tokenKey)
+        return tokens
+    }
+
+    private func buildHighlightedString(
+        text: String,
+        tokens: HighlightTokenCacheValue,
+        fontSize: CGFloat,
+        theme: SyntaxHighlightTheme
+    ) -> NSAttributedString {
         let mutable = NSMutableAttributedString(string: text)
         let fullRange = NSRange(location: 0, length: mutable.length)
 
@@ -29,6 +125,99 @@ struct SyntaxHighlightedText: View {
         let titleColor = theme.heading
         let emphasisColor = theme.emphasis
         let linkColor = theme.link
+
+        for range in tokens.keywordRanges {
+            mutable.addAttribute(.foregroundColor, value: keywordColor, range: range)
+        }
+
+        for range in tokens.stringRanges {
+            mutable.addAttribute(.foregroundColor, value: stringColor, range: range)
+        }
+
+        for range in tokens.numberRanges {
+            mutable.addAttribute(.foregroundColor, value: numberColor, range: range)
+        }
+
+        for range in tokens.commentRanges {
+            mutable.addAttribute(.foregroundColor, value: commentColor, range: range)
+        }
+
+        for range in tokens.headingRanges {
+            mutable.addAttribute(.foregroundColor, value: titleColor, range: range)
+            mutable.addAttribute(.font, value: UIFont.boldSystemFont(ofSize: fontSize + 2), range: range)
+        }
+
+        for range in tokens.boldRanges {
+            mutable.addAttribute(.foregroundColor, value: emphasisColor, range: range)
+            mutable.addAttribute(.font, value: UIFont.boldSystemFont(ofSize: fontSize), range: range)
+        }
+
+        for range in tokens.inlineCodeRanges {
+            mutable.addAttribute(.foregroundColor, value: stringColor, range: range)
+            mutable.addAttribute(.backgroundColor, value: theme.inlineCodeBackground, range: range)
+        }
+
+        for range in tokens.linkRanges {
+            mutable.addAttribute(.foregroundColor, value: linkColor, range: range)
+            mutable.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: range)
+        }
+
+        return mutable
+    }
+
+    private func cacheKey(text: String, language: String, fontSize: CGFloat, themeKey: String) -> NSString {
+        NSString(string: "\(language)|\(text.hashValue)|\(fontSize)|\(themeKey)")
+    }
+}
+
+private final class HighlightTokenCacheValue: NSObject {
+    let keywordRanges: [NSRange]
+    let stringRanges: [NSRange]
+    let numberRanges: [NSRange]
+    let commentRanges: [NSRange]
+    let headingRanges: [NSRange]
+    let boldRanges: [NSRange]
+    let inlineCodeRanges: [NSRange]
+    let linkRanges: [NSRange]
+
+    init(
+        keywordRanges: [NSRange],
+        stringRanges: [NSRange],
+        numberRanges: [NSRange],
+        commentRanges: [NSRange],
+        headingRanges: [NSRange],
+        boldRanges: [NSRange],
+        inlineCodeRanges: [NSRange],
+        linkRanges: [NSRange]
+    ) {
+        self.keywordRanges = keywordRanges
+        self.stringRanges = stringRanges
+        self.numberRanges = numberRanges
+        self.commentRanges = commentRanges
+        self.headingRanges = headingRanges
+        self.boldRanges = boldRanges
+        self.inlineCodeRanges = inlineCodeRanges
+        self.linkRanges = linkRanges
+    }
+}
+
+private enum RegexStore {
+    private static var keywordRegexCache: [String: NSRegularExpression] = [:]
+
+    static let stringRegex = try! NSRegularExpression(pattern: #"\".*?\"|'.*?'"#)
+    static let numberRegex = try! NSRegularExpression(pattern: #"\b[0-9]+(\.[0-9]+)?\b"#)
+    static let swiftCommentRegex = try! NSRegularExpression(pattern: #"//.*"#)
+    static let cStyleCommentRegex = try! NSRegularExpression(pattern: #"//.*"#)
+    static let pythonCommentRegex = try! NSRegularExpression(pattern: #"#.*"#)
+    static let markdownHeadingRegex = try! NSRegularExpression(pattern: #"(?m)^#{1,6} .*"#)
+    static let markdownBoldRegex = try! NSRegularExpression(pattern: #"(\*\*|__)(.+?)(\*\*|__)"#)
+    static let markdownInlineCodeRegex = try! NSRegularExpression(pattern: #"`[^`]+`"#)
+    static let markdownLinkRegex = try! NSRegularExpression(pattern: #"\[[^\]]+\]\([^\)]+\)"#)
+
+    static func keywordRegex(for language: String) -> NSRegularExpression? {
+        if let cached = keywordRegexCache[language] {
+            return cached
+        }
 
         let keywords: [String]
         switch language {
@@ -49,89 +238,29 @@ struct SyntaxHighlightedText: View {
                 "def", "class", "import", "from", "return", "if", "else", "elif",
                 "for", "while", "in", "and", "or", "not", "with", "as"
             ]
-        case "md", "markdown":
-            keywords = []
         default:
             keywords = []
         }
 
-        for kw in keywords {
-            let pattern = #"\b\#(kw)\b"#
-            if let regex = try? NSRegularExpression(pattern: pattern) {
-                let matches = regex.matches(in: text, range: fullRange)
-                for match in matches {
-                    mutable.addAttribute(.foregroundColor, value: keywordColor, range: match.range)
-                }
-            }
+        guard !keywords.isEmpty else { return nil }
+
+        let pattern = #"\b(?:"# + keywords.joined(separator: "|") + #")\b"#
+        let regex = try? NSRegularExpression(pattern: pattern)
+        keywordRegexCache[language] = regex
+        return regex
+    }
+
+    static func commentRegex(for language: String) -> NSRegularExpression? {
+        switch language {
+        case "swift":
+            return swiftCommentRegex
+        case "c", "cpp", "h", "hpp":
+            return cStyleCommentRegex
+        case "py":
+            return pythonCommentRegex
+        default:
+            return nil
         }
-
-        if let stringRegex = try? NSRegularExpression(pattern: #"\".*?\"|'.*?'"#) {
-            let matches = stringRegex.matches(in: text, range: fullRange)
-            for match in matches {
-                mutable.addAttribute(.foregroundColor, value: stringColor, range: match.range)
-            }
-        }
-
-        if let numberRegex = try? NSRegularExpression(pattern: #"\b[0-9]+(\.[0-9]+)?\b"#) {
-            let matches = numberRegex.matches(in: text, range: fullRange)
-            for match in matches {
-                mutable.addAttribute(.foregroundColor, value: numberColor, range: match.range)
-            }
-        }
-
-        if ["swift", "c", "cpp", "h", "hpp"].contains(language) {
-            if let commentRegex = try? NSRegularExpression(pattern: #"//.*"#) {
-                let matches = commentRegex.matches(in: text, range: fullRange)
-                for match in matches {
-                    mutable.addAttribute(.foregroundColor, value: commentColor, range: match.range)
-                }
-            }
-        }
-
-        if language == "py" {
-            if let commentRegex = try? NSRegularExpression(pattern: #"#.*"#) {
-                let matches = commentRegex.matches(in: text, range: fullRange)
-                for match in matches {
-                    mutable.addAttribute(.foregroundColor, value: commentColor, range: match.range)
-                }
-            }
-        }
-
-        if language == "md" || language == "markdown" {
-            if let headingRegex = try? NSRegularExpression(pattern: #"(?m)^#{1,6} .*"#) {
-                let matches = headingRegex.matches(in: text, range: fullRange)
-                for match in matches {
-                    mutable.addAttribute(.foregroundColor, value: titleColor, range: match.range)
-                    mutable.addAttribute(.font, value: UIFont.boldSystemFont(ofSize: fontSize + 2), range: match.range)
-                }
-            }
-
-            if let boldRegex = try? NSRegularExpression(pattern: #"(\*\*|__)(.+?)(\*\*|__)"#) {
-                let matches = boldRegex.matches(in: text, range: fullRange)
-                for match in matches {
-                    mutable.addAttribute(.foregroundColor, value: emphasisColor, range: match.range)
-                    mutable.addAttribute(.font, value: UIFont.boldSystemFont(ofSize: fontSize), range: match.range)
-                }
-            }
-
-            if let inlineCodeRegex = try? NSRegularExpression(pattern: #"`[^`]+`"#) {
-                let matches = inlineCodeRegex.matches(in: text, range: fullRange)
-                for match in matches {
-                    mutable.addAttribute(.foregroundColor, value: stringColor, range: match.range)
-                    mutable.addAttribute(.backgroundColor, value: theme.inlineCodeBackground, range: match.range)
-                }
-            }
-
-            if let linkRegex = try? NSRegularExpression(pattern: #"\[[^\]]+\]\([^\)]+\)"#) {
-                let matches = linkRegex.matches(in: text, range: fullRange)
-                for match in matches {
-                    mutable.addAttribute(.foregroundColor, value: linkColor, range: match.range)
-                    mutable.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: match.range)
-                }
-            }
-        }
-
-        return AttributedString(mutable)
     }
 }
 
@@ -145,6 +274,7 @@ private struct SyntaxHighlightTheme {
     let emphasis: UIColor
     let link: UIColor
     let inlineCodeBackground: UIColor
+    let cacheKey: String
 
     static func atomOne(for scheme: ColorScheme) -> SyntaxHighlightTheme {
         switch scheme {
@@ -158,7 +288,8 @@ private struct SyntaxHighlightTheme {
                 heading: UIColor(red: 0.88, green: 0.42, blue: 0.46, alpha: 1.0),        // #e06c75
                 emphasis: UIColor(red: 0.88, green: 0.42, blue: 0.46, alpha: 1.0),       // #e06c75
                 link: UIColor(red: 0.38, green: 0.69, blue: 0.94, alpha: 1.0),           // #61afef
-                inlineCodeBackground: UIColor(red: 0.16, green: 0.17, blue: 0.20, alpha: 1.0) // #282c34
+                inlineCodeBackground: UIColor(red: 0.16, green: 0.17, blue: 0.20, alpha: 1.0), // #282c34
+                cacheKey: "atomOne-dark"
             )
         default:
             return SyntaxHighlightTheme(
@@ -170,7 +301,8 @@ private struct SyntaxHighlightTheme {
                 heading: UIColor(red: 0.89, green: 0.34, blue: 0.31, alpha: 1.0),        // #e45649
                 emphasis: UIColor(red: 0.89, green: 0.34, blue: 0.31, alpha: 1.0),       // #e45649
                 link: UIColor(red: 0.25, green: 0.47, blue: 0.95, alpha: 1.0),           // #4078f2
-                inlineCodeBackground: UIColor(red: 0.92, green: 0.92, blue: 0.92, alpha: 1.0) // #ebebeb
+                inlineCodeBackground: UIColor(red: 0.92, green: 0.92, blue: 0.92, alpha: 1.0), // #ebebeb
+                cacheKey: "atomOne-light"
             )
         }
     }
