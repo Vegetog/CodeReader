@@ -27,6 +27,17 @@ struct FileViewer: View {
         }
         .animation(.default, value: isEditing)
         .animation(.default, value: markdownMode)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button(isEditing ? "完成" : "编辑") {
+                    isEditing.toggle()
+                }
+                .disabled(isEditButtonDisabled)
+            }
+        }
+        .onChange(of: openedFile.kind) { _ in
+            markdownMode = .preview
+        }
     }
 
     // MARK: - Code View
@@ -141,5 +152,9 @@ struct FileViewer: View {
                 .padding()
                 .textSelection(.enabled)
         }
+    }
+
+    private var isEditButtonDisabled: Bool {
+        openedFile.kind == .markdown && markdownMode == .preview
     }
 }
