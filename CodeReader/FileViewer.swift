@@ -76,7 +76,17 @@ struct FileViewer: View {
             Group {
                 switch markdownMode {
                 case .source:
-                    textEditorView
+                    if isEditing {
+                        textEditorView
+                    } else {
+                        readOnlyScrollView {
+                            SyntaxHighlightedText(
+                                text: openedFile.content,
+                                language: "markdown",
+                                fontSize: fontSize
+                            )
+                        }
+                    }
                 case .preview:
                     MarkdownPreview(text: openedFile.content, fontSize: fontSize)
                 }
