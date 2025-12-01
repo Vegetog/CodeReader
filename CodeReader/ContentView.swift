@@ -40,14 +40,6 @@ struct ContentView: View {
             }
             .navigationTitle("CodeReader")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    if openedFile != nil {
-                        Button(isEditing ? "完成" : "编辑") {
-                            isEditing.toggle()
-                        }
-                    }
-                }
-
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         isImporterPresented = true
