@@ -35,7 +35,7 @@ struct FileViewer: View {
                 .disabled(isEditButtonDisabled)
             }
         }
-        .onChange(of: openedFile.kind) { _ in
+        .onChange(of: openedFile.kind) {
             markdownMode = .preview
         }
     }
