@@ -47,7 +47,7 @@ struct MarkdownWebView: UIViewRepresentable {
             <!-- markdown-it-katex 数学公式支持 -->
             <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
             <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
-            <script src="https://cdn.jsdelivr.net/npm/markdown-it-katex@2.0.3/dist/markdown-it-katex.min.js"></script>
+            <script src="https://cdn.jsdelivr.net/npm/markdown-it-katex@3.0.1/dist/markdown-it-katex.min.js"></script>
 
             <style>
                 :root {
@@ -205,8 +205,14 @@ struct MarkdownWebView: UIViewRepresentable {
                         }
                     });
 
-                    if (window.markdownitKatex) {
-                        md.use(window.markdownitKatex);
+                    // 尝试从多种导出形式中获取 markdown-it-katex 插件
+                    var katexPlugin =
+                        (typeof window.markdownitKatex === 'function' && window.markdownitKatex) ||
+                        (window.markdownitKatex && typeof window.markdownitKatex.default === 'function' && window.markdownitKatex.default) ||
+                        (typeof window.markdownItKatex === 'function' && window.markdownItKatex);
+
+                    if (katexPlugin) {
+                        md.use(katexPlugin);
                     }
 
                     document.getElementById('content').innerHTML = md.render(decoded);
