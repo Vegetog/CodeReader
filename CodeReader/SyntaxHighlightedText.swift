@@ -56,7 +56,7 @@ struct SyntaxHighlightedText: View {
         }
 
         for kw in keywords {
-            let pattern = "\\b\(kw)\\b"
+            let pattern = #"\b\#(kw)\b"#
             if let regex = try? NSRegularExpression(pattern: pattern) {
                 let matches = regex.matches(in: text, range: fullRange)
                 for match in matches {
@@ -65,14 +65,14 @@ struct SyntaxHighlightedText: View {
             }
         }
 
-        if let stringRegex = try? NSRegularExpression(pattern: "\".*?\"|'.*?'", options: []) {
+        if let stringRegex = try? NSRegularExpression(pattern: #"\".*?\"|'.*?'"#) {
             let matches = stringRegex.matches(in: text, range: fullRange)
             for match in matches {
                 mutable.addAttribute(.foregroundColor, value: stringColor, range: match.range)
             }
         }
 
-        if let numberRegex = try? NSRegularExpression(pattern: "\\b[0-9]+(\\.[0-9]+)?\\b", options: []) {
+        if let numberRegex = try? NSRegularExpression(pattern: #"\b[0-9]+(\.[0-9]+)?\b"#) {
             let matches = numberRegex.matches(in: text, range: fullRange)
             for match in matches {
                 mutable.addAttribute(.foregroundColor, value: numberColor, range: match.range)
@@ -80,7 +80,7 @@ struct SyntaxHighlightedText: View {
         }
 
         if ["swift", "c", "cpp", "h", "hpp"].contains(language) {
-            if let commentRegex = try? NSRegularExpression(pattern: "//.*", options: []) {
+            if let commentRegex = try? NSRegularExpression(pattern: #"//.*"#) {
                 let matches = commentRegex.matches(in: text, range: fullRange)
                 for match in matches {
                     mutable.addAttribute(.foregroundColor, value: commentColor, range: match.range)
@@ -89,7 +89,7 @@ struct SyntaxHighlightedText: View {
         }
 
         if language == "py" {
-            if let commentRegex = try? NSRegularExpression(pattern: "#.*", options: []) {
+            if let commentRegex = try? NSRegularExpression(pattern: #"#.*"#) {
                 let matches = commentRegex.matches(in: text, range: fullRange)
                 for match in matches {
                     mutable.addAttribute(.foregroundColor, value: commentColor, range: match.range)
@@ -98,7 +98,7 @@ struct SyntaxHighlightedText: View {
         }
 
         if language == "md" || language == "markdown" {
-            if let headingRegex = try? NSRegularExpression(pattern: "(?m)^#{1,6} .*", options: []) {
+            if let headingRegex = try? NSRegularExpression(pattern: #"(?m)^#{1,6} .*"#) {
                 let matches = headingRegex.matches(in: text, range: fullRange)
                 for match in matches {
                     mutable.addAttribute(.foregroundColor, value: titleColor, range: match.range)
@@ -106,7 +106,7 @@ struct SyntaxHighlightedText: View {
                 }
             }
 
-            if let boldRegex = try? NSRegularExpression(pattern: "(\*\*|__)(.+?)(\*\*|__)", options: []) {
+            if let boldRegex = try? NSRegularExpression(pattern: #"(\*\*|__)(.+?)(\*\*|__)"#) {
                 let matches = boldRegex.matches(in: text, range: fullRange)
                 for match in matches {
                     mutable.addAttribute(.foregroundColor, value: emphasisColor, range: match.range)
@@ -114,7 +114,7 @@ struct SyntaxHighlightedText: View {
                 }
             }
 
-            if let inlineCodeRegex = try? NSRegularExpression(pattern: "`[^`]+`", options: []) {
+            if let inlineCodeRegex = try? NSRegularExpression(pattern: #"`[^`]+`"#) {
                 let matches = inlineCodeRegex.matches(in: text, range: fullRange)
                 for match in matches {
                     mutable.addAttribute(.foregroundColor, value: stringColor, range: match.range)
@@ -122,7 +122,7 @@ struct SyntaxHighlightedText: View {
                 }
             }
 
-            if let linkRegex = try? NSRegularExpression(pattern: "\\[[^\\]]+\\]\\([^\\)]+\\)", options: []) {
+            if let linkRegex = try? NSRegularExpression(pattern: #"\[[^\]]+\]\([^\)]+\)"#) {
                 let matches = linkRegex.matches(in: text, range: fullRange)
                 for match in matches {
                     mutable.addAttribute(.foregroundColor, value: linkColor, range: match.range)
