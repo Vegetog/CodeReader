@@ -23,9 +23,12 @@ struct MarkdownWebView: UIViewRepresentable {
     // MARK: - HTML 模板
 
     private func buildHTML(from markdown: String, fontSize: CGFloat) -> String {
-        // 用 Base64 传输 markdown，避免引号转义各种麻烦
-        let data = Data(markdown.utf8)
-        let base64 = data.base64EncodedString()
+        // 把 markdown 转成适合放进 JS 模板字符串的形式
+        let escaped = markdown
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "`", with: "\\`")
+            .replacingOccurrences(of: "$", with: "\\$")
+            .replacingOccurrences(of: "</script>", with: "<\\/script>")
 
         let html = """
         <!DOCTYPE html>
@@ -34,22 +37,16 @@ struct MarkdownWebView: UIViewRepresentable {
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <meta charset="utf-8">
 
-            <!-- highlight.js 代码高亮 -->
+            <!-- highlight.js 代码高亮（可选） -->
             <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
             <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 
             <!-- markdown-it 核心 -->
             <script src="https://cdn.jsdelivr.net/npm/markdown-it@13.0.1/dist/markdown-it.min.js"></script>
-            <script src="https://cdn.jsdelivr.net/npm/markdown-it-container@3.0.0/dist/markdown-it-container.min.js"></script>
-
-            <!-- KaTeX 数学公式 -->
-            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
-            <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
-            <script src="https://cdn.jsdelivr.net/npm/markdown-it-katex@3.0.1/dist/markdown-it-katex.min.js"></script>
 
             <style>
                 :root {
-                    color-scheme: light dark;
+                    color-scheme: light;
                 }
 
                 body {
@@ -58,8 +55,8 @@ struct MarkdownWebView: UIViewRepresentable {
                     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, -apple-system-body;
                     font-size: \(fontSize)px;
                     line-height: 1.6;
-                    color: #e6e6e6;
-                    background-color: transparent;
+                    color: #000000;
+                    background-color: #FFFFFF;
                     -webkit-text-size-adjust: 100%;
                 }
 
@@ -67,6 +64,7 @@ struct MarkdownWebView: UIViewRepresentable {
                     font-weight: 600;
                     margin-top: 1.2em;
                     margin-bottom: 0.6em;
+                    color: #000000;
                 }
 
                 h1 { font-size: \(fontSize * 1.8)px; }
@@ -76,13 +74,14 @@ struct MarkdownWebView: UIViewRepresentable {
 
                 code {
                     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-                    background-color: rgba(255, 255, 255, 0.06);
+                    background-color: rgba(0, 0, 0, 0.06);
                     padding: 2px 4px;
                     border-radius: 4px;
+                    color: #000000;
                 }
 
                 pre {
-                    background-color: rgba(0, 0, 0, 0.4);
+                    background-color: rgba(0, 0, 0, 0.05);
                     padding: 12px;
                     border-radius: 8px;
                     overflow-x: auto;
@@ -94,7 +93,7 @@ struct MarkdownWebView: UIViewRepresentable {
                 }
 
                 a {
-                    color: #4aa3ff;
+                    color: #007AFF;
                     text-decoration: none;
                 }
 
@@ -103,10 +102,10 @@ struct MarkdownWebView: UIViewRepresentable {
                 }
 
                 blockquote {
-                    border-left: 4px solid rgba(255, 255, 255, 0.25);
+                    border-left: 4px solid rgba(0, 0, 0, 0.25);
                     padding-left: 12px;
                     margin-left: 0;
-                    color: rgba(255, 255, 255, 0.8);
+                    color: rgba(0, 0, 0, 0.8);
                 }
 
                 table {
@@ -116,14 +115,17 @@ struct MarkdownWebView: UIViewRepresentable {
                 }
 
                 table th, table td {
-                    border: 1px solid rgba(255, 255, 255, 0.2);
+                    border: 1px solid rgba(0, 0, 0, 0.2);
                     padding: 6px 8px;
+                    color: #000000;
                 }
 
                 img {
                     max-width: 100%;
                     height: auto;
                     border-radius: 6px;
+                    display: block;
+                    margin: 8px 0;
                 }
 
                 ul, ol {
@@ -132,7 +134,7 @@ struct MarkdownWebView: UIViewRepresentable {
 
                 hr {
                     border: 0;
-                    border-top: 1px solid rgba(255, 255, 255, 0.2);
+                    border-top: 1px solid rgba(0, 0, 0, 0.2);
                     margin: 16px 0;
                 }
             </style>
@@ -142,24 +144,31 @@ struct MarkdownWebView: UIViewRepresentable {
 
             <script>
                 (function() {
+                    // Swift 注入的原始 markdown 文本（已经在 Swift 里做了转义）
+                    var decoded = `\(escaped)`;
+
+                    // markdown-it 没加载成功：直接显示原始 markdown 文本
+                    if (!window.markdownit) {
+                        var el = document.getElementById('content');
+                        el.innerText = decoded || 'markdown-it 加载失败';
+                        return;
+                    }
+
                     var md = window.markdownit({
                         html: true,
                         linkify: true,
                         breaks: true,
                         highlight: function (str, lang) {
                             try {
-                                return '<pre><code class="hljs">' +
-                                    hljs.highlight(str, {language: lang || 'plaintext'}).value +
-                                    '</code></pre>';
-                            } catch (__) {}
+                                if (lang && window.hljs) {
+                                    return '<pre><code class="hljs">' +
+                                        window.hljs.highlight(str, {language: lang}).value +
+                                        '</code></pre>';
+                                }
+                            } catch (e) {}
                             return '<pre><code class="hljs">' + md.utils.escapeHtml(str) + '</code></pre>';
                         }
-                    })
-                    .use(window.markdownitKatex);
-
-                    // Base64 解码 markdown
-                    var base64 = "\(base64)";
-                    var decoded = decodeURIComponent(escape(window.atob(base64)));
+                    });
 
                     document.getElementById('content').innerHTML = md.render(decoded);
                 })();
