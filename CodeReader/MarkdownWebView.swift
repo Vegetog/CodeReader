@@ -4,6 +4,7 @@ import WebKit
 struct MarkdownWebView: UIViewRepresentable {
     let markdown: String
     let fontSize: CGFloat
+    let scrollTargetHeadingID: String?
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
@@ -16,15 +17,16 @@ struct MarkdownWebView: UIViewRepresentable {
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
-        let html = buildHTML(from: markdown, fontSize: fontSize)
+        let html = buildHTML(from: markdown, fontSize: fontSize, scrollTargetHeadingID: scrollTargetHeadingID)
         webView.loadHTMLString(html, baseURL: nil)
     }
 
     // MARK: - HTML 模板
 
-    private func buildHTML(from markdown: String, fontSize: CGFloat) -> String {
+    private func buildHTML(from markdown: String, fontSize: CGFloat, scrollTargetHeadingID: String?) -> String {
         // 1. 继续使用 Base64 传输，这是最稳妥的方案，防止反斜杠丢失
         let base64String = markdown.data(using: .utf8)?.base64EncodedString() ?? ""
+        let scrollTargetHeadingID = scrollTargetHeadingID ?? ""
 
         let html = """
         <!DOCTYPE html>
@@ -43,6 +45,7 @@ struct MarkdownWebView: UIViewRepresentable {
             <script src="https://cdn.jsdelivr.net/npm/markdown-it@13.0.1/dist/markdown-it.min.js"></script>
 
             <script src="https://cdn.jsdelivr.net/npm/markdown-it-texmath@1.0.0/texmath.min.js"></script>
+            <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
 
             <style>
                 :root { color-scheme: light dark; }
@@ -73,18 +76,34 @@ struct MarkdownWebView: UIViewRepresentable {
                 table { border-collapse: collapse; width: 100%; margin: 12px 0; }
                 table th, table td { border: 1px solid var(--table-border); padding: 6px 8px; }
                 blockquote { border-left: 4px solid var(--quote-border); padding-left: 12px; margin-left: 0; color: var(--quote-text); }
+                .mermaid {
+                    overflow-x: auto;
+                    margin: 16px 0;
+                    padding: 12px;
+                    border-radius: 8px;
+                    background-color: var(--diagram-bg);
+                    text-align: center;
+                }
+                .mermaid svg {
+                    max-width: 100%;
+                    height: auto;
+                }
+                .mermaid-error {
+                    white-space: pre-wrap;
+                    color: var(--error-text);
+                }
 
                 :root[data-theme="light"] {
                     --text-color: #383a42; --background-color: #fafafa;
                     --inline-code-bg: #ebebeb; --pre-bg: #f6f8fa;
                     --link-color: #4078f2; --quote-border: rgba(0,0,0,0.2); --quote-text: rgba(0,0,0,0.8);
-                    --table-border: rgba(0,0,0,0.2);
+                    --table-border: rgba(0,0,0,0.2); --diagram-bg: #f6f8fa; --error-text: #b3261e;
                 }
                 :root[data-theme="dark"] {
                     --text-color: #abb2bf; --background-color: #1f2229;
                     --inline-code-bg: #282c34; --pre-bg: #282c34;
                     --link-color: #61afef; --quote-border: rgba(255,255,255,0.25); --quote-text: rgba(255,255,255,0.85);
-                    --table-border: rgba(255,255,255,0.25);
+                    --table-border: rgba(255,255,255,0.25); --diagram-bg: #282c34; --error-text: #ffb4ab;
                 }
             </style>
         </head>
@@ -111,6 +130,7 @@ struct MarkdownWebView: UIViewRepresentable {
 
                     // 2. 初始化 markdown-it
                     if (window.markdownit) {
+                        var isDarkMode = prefersDark.matches;
                         var md = window.markdownit({
                             html: true,
                             linkify: true,
@@ -122,6 +142,18 @@ struct MarkdownWebView: UIViewRepresentable {
                                 return '<pre><code class="hljs">' + md.utils.escapeHtml(str) + '</code></pre>';
                             }
                         });
+                        var defaultFence = md.renderer.rules.fence;
+
+                        md.renderer.rules.fence = function(tokens, idx, options, env, self) {
+                            var token = tokens[idx];
+                            var info = token.info ? token.info.trim().split(/\\s+/)[0].toLowerCase() : '';
+
+                            if (info === 'mermaid') {
+                                return '<div class="mermaid">' + md.utils.escapeHtml(token.content) + '</div>';
+                            }
+
+                            return defaultFence(tokens, idx, options, env, self);
+                        };
 
                         // 3. 【核心配置】模拟 VS Code 的数学公式渲染
                         // 使用 texmath 插件，并指定 engine 为 katex
@@ -135,6 +167,36 @@ struct MarkdownWebView: UIViewRepresentable {
                         }
 
                         document.getElementById('content').innerHTML = md.render(decodedMarkdown);
+                        Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,h6')).forEach(function(heading, index) {
+                            heading.id = 'heading-' + index;
+                        });
+
+                        var targetHeadingID = "\(scrollTargetHeadingID)";
+                        if (targetHeadingID.length > 0) {
+                            var targetHeading = document.getElementById(targetHeadingID);
+                            if (targetHeading) {
+                                setTimeout(function() {
+                                    targetHeading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                }, 80);
+                            }
+                        }
+
+                        if (window.mermaid) {
+                            window.mermaid.initialize({
+                                startOnLoad: false,
+                                theme: isDarkMode ? 'dark' : 'default',
+                                securityLevel: 'strict',
+                                fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif'
+                            });
+                            window.mermaid.run({ querySelector: '.mermaid' }).catch(function(error) {
+                                document.querySelectorAll('.mermaid').forEach(function(element) {
+                                    if (!element.querySelector('svg')) {
+                                        element.classList.add('mermaid-error');
+                                    }
+                                });
+                                console.error('Mermaid render error', error);
+                            });
+                        }
                     } else {
                         document.getElementById('content').innerText = decodedMarkdown;
                     }

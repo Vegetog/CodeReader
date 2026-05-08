@@ -29,9 +29,22 @@
 		D73CBDF42EDD86B200759786 /* CodeReaderUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CodeReaderUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		D77181F12EDF2B0500C156B1 /* Exceptions for "CodeReader" folder in "CodeReader" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = D73CBDDC2EDD86B000759786 /* CodeReader */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		D73CBDDF2EDD86B000759786 /* CodeReader */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				D77181F12EDF2B0500C156B1 /* Exceptions for "CodeReader" folder in "CodeReader" target */,
+			);
 			path = CodeReader;
 			sourceTree = "<group>";
 		};
@@ -395,6 +408,8 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = CodeReader/Info.plist;
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -439,6 +454,8 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = CodeReader/Info.plist;
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;

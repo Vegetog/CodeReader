@@ -6,6 +6,9 @@ struct SyntaxHighlightedText: View {
     let text: String
     let language: String
     let fontSize: CGFloat
+    var searchRanges: [NSRange] = []
+    var currentSearchRange: NSRange?
+    var wrapsLines = true
 
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var highlighter = SyntaxHighlighter()
@@ -14,12 +17,14 @@ struct SyntaxHighlightedText: View {
     var body: some View {
         Text(attributed)
             .font(.system(size: fontSize, design: .monospaced))
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: !wrapsLines, vertical: true)
             .onAppear(perform: refresh)
             .onChange(of: text) { _, _ in refresh() }
             .onChange(of: language) { _, _ in refresh() }
             .onChange(of: colorScheme) { _, _ in refresh() }
             .onChange(of: fontSize) { _, _ in refresh() }
+            .onChange(of: searchRanges) { _, _ in refresh() }
+            .onChange(of: currentSearchRange) { _, _ in refresh() }
     }
 
     private func refresh() {
@@ -28,7 +33,9 @@ struct SyntaxHighlightedText: View {
             text: text,
             language: language,
             fontSize: fontSize,
-            theme: theme
+            theme: theme,
+            searchRanges: searchRanges,
+            currentSearchRange: currentSearchRange
         )
     }
 }
@@ -38,9 +45,16 @@ private final class SyntaxHighlighter: ObservableObject {
     private static let cache = NSCache<NSString, NSAttributedString>()
     private static let tokenCache = NSCache<NSString, HighlightTokenCacheValue>()
 
-    func highlight(text: String, language: String, fontSize: CGFloat, theme: SyntaxHighlightTheme) -> AttributedString {
+    func highlight(
+        text: String,
+        language: String,
+        fontSize: CGFloat,
+        theme: SyntaxHighlightTheme,
+        searchRanges: [NSRange],
+        currentSearchRange: NSRange?
+    ) -> AttributedString {
         let finalKey = cacheKey(text: text, language: language, fontSize: fontSize, themeKey: theme.cacheKey)
-        if let cached = Self.cache.object(forKey: finalKey) {
+        if searchRanges.isEmpty, currentSearchRange == nil, let cached = Self.cache.object(forKey: finalKey) {
             return AttributedString(cached)
         }
 
@@ -49,10 +63,15 @@ private final class SyntaxHighlighter: ObservableObject {
             text: text,
             tokens: tokens,
             fontSize: fontSize,
-            theme: theme
+            theme: theme,
+            searchRanges: searchRanges,
+            currentSearchRange: currentSearchRange
         )
 
-        Self.cache.setObject(highlighted, forKey: finalKey)
+        if searchRanges.isEmpty, currentSearchRange == nil {
+            Self.cache.setObject(highlighted, forKey: finalKey)
+        }
+
         return AttributedString(highlighted)
     }
 
@@ -111,7 +130,9 @@ private final class SyntaxHighlighter: ObservableObject {
         text: String,
         tokens: HighlightTokenCacheValue,
         fontSize: CGFloat,
-        theme: SyntaxHighlightTheme
+        theme: SyntaxHighlightTheme,
+        searchRanges: [NSRange],
+        currentSearchRange: NSRange?
     ) -> NSAttributedString {
         let mutable = NSMutableAttributedString(string: text)
         let fullRange = NSRange(location: 0, length: mutable.length)
@@ -160,6 +181,15 @@ private final class SyntaxHighlighter: ObservableObject {
         for range in tokens.linkRanges {
             mutable.addAttribute(.foregroundColor, value: linkColor, range: range)
             mutable.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: range)
+        }
+
+        for range in searchRanges where NSMaxRange(range) <= mutable.length {
+            mutable.addAttribute(.backgroundColor, value: theme.searchBackground, range: range)
+        }
+
+        if let currentSearchRange, NSMaxRange(currentSearchRange) <= mutable.length {
+            mutable.addAttribute(.backgroundColor, value: theme.currentSearchBackground, range: currentSearchRange)
+            mutable.addAttribute(.foregroundColor, value: theme.currentSearchText, range: currentSearchRange)
         }
 
         return mutable
@@ -274,6 +304,9 @@ private struct SyntaxHighlightTheme {
     let emphasis: UIColor
     let link: UIColor
     let inlineCodeBackground: UIColor
+    let searchBackground: UIColor
+    let currentSearchBackground: UIColor
+    let currentSearchText: UIColor
     let cacheKey: String
 
     static func atomOne(for scheme: ColorScheme) -> SyntaxHighlightTheme {
@@ -289,6 +322,9 @@ private struct SyntaxHighlightTheme {
                 emphasis: UIColor(red: 0.88, green: 0.42, blue: 0.46, alpha: 1.0),       // #e06c75
                 link: UIColor(red: 0.38, green: 0.69, blue: 0.94, alpha: 1.0),           // #61afef
                 inlineCodeBackground: UIColor(red: 0.16, green: 0.17, blue: 0.20, alpha: 1.0), // #282c34
+                searchBackground: UIColor(red: 0.91, green: 0.72, blue: 0.24, alpha: 0.45),
+                currentSearchBackground: UIColor(red: 1.0, green: 0.74, blue: 0.20, alpha: 1.0),
+                currentSearchText: UIColor(red: 0.10, green: 0.10, blue: 0.10, alpha: 1.0),
                 cacheKey: "atomOne-dark"
             )
         default:
@@ -302,6 +338,9 @@ private struct SyntaxHighlightTheme {
                 emphasis: UIColor(red: 0.89, green: 0.34, blue: 0.31, alpha: 1.0),       // #e45649
                 link: UIColor(red: 0.25, green: 0.47, blue: 0.95, alpha: 1.0),           // #4078f2
                 inlineCodeBackground: UIColor(red: 0.92, green: 0.92, blue: 0.92, alpha: 1.0), // #ebebeb
+                searchBackground: UIColor(red: 1.0, green: 0.91, blue: 0.32, alpha: 0.60),
+                currentSearchBackground: UIColor(red: 1.0, green: 0.72, blue: 0.16, alpha: 1.0),
+                currentSearchText: UIColor(red: 0.10, green: 0.10, blue: 0.10, alpha: 1.0),
                 cacheKey: "atomOne-light"
             )
         }
